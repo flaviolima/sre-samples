@@ -1,9 +1,8 @@
 
-# Exemplo de Implementação de Circuit Breaker com Spring Boot
+# Circuit Breaker, Timeout, Rate Limiting e Bulkhead com Spring Boot e Resilience4j
+https://resilience4j.readme.io/docs/getting-started
 
-Este tutorial demonstra como implementar o padrão **Circuit Breaker** em uma aplicação Java usando **Spring Boot** e a biblioteca **Resilience4j**. 
-
-O Circuit Breaker ajuda a proteger a aplicação contra falhas em cascata, evitando chamadas excessivas para serviços que estão falhando.
+O Resilience4j é uma biblioteca que oferece soluções para garantir resiliência de serviços em sistemas distribuídos, com suporte a padrões como Timeout, Rate Limiting e Bulkhead. A seguir, veremos como implementá-los em um projeto Spring Boot.
 
 Para gerar um projeto Springboot, utilize o Spring Initializr: https://start.spring.io/
 
@@ -11,26 +10,37 @@ Você também precisará ter instalado o Java +16 e Maven +3.9.9
 
 ## Passos para Implementar o Circuit Breaker
 
+O Circuit Breaker ajuda a proteger a aplicação contra falhas em cascata, evitando chamadas excessivas para serviços que estão falhando.
+
 ### 1. Dependências do Maven
 
 Adicione as dependências necessárias no arquivo `pom.xml`:
 
 ```xml
-<dependencies>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-    <dependency>
-        <groupId>io.github.resilience4j</groupId>
-        <artifactId>resilience4j-spring-boot2</artifactId>
-        <version>1.7.0</version>
-    </dependency>
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-actuator</artifactId>
-    </dependency>
-</dependencies>
+		<!-- Resilience4j para Circuit Breaker, Timeout, Rate Limiting e Bulkhead -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot2</artifactId>
+			<version>1.7.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-ratelimiter</artifactId>
+			<version>1.7.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-timelimiter</artifactId>
+			<version>1.7.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-bulkhead</artifactId>
+			<version>1.7.1</version>
+		</dependency>
 ```
 
 ### 2. Configuração no `application.properties`
@@ -48,6 +58,13 @@ resilience4j.circuitbreaker.instances.backendA.registerHealthIndicator=true
 # Porta da aplicação (opcional)
 server.port=8080
 ```
+
+Explicação das Propriedades:
+- `slidingWindowSize`: Define o tamanho da janela (número de chamadas) que o Circuit Breaker usará para calcular a taxa de falhas.
+- `failureRateThreshold`: Define a taxa de falhas (%) que, se ultrapassada, abrirá o Circuit Breaker.
+- `waitDurationInOpenState`: O tempo (em milissegundos) que o Circuit Breaker permanecerá no estado aberto antes de tentar reabrir.
+- `permittedNumberOfCallsInHalfOpenState`: O número de chamadas permitidas enquanto o Circuit Breaker está no estado "half-open" (meio-aberto).
+- `registerHealthIndicator`: Habilita o indicador de saúde para monitoramento através do Actuator.
 
 Aqui, `backendA` é o nome da instância do Circuit Breaker, onde você pode ajustar parâmetros como a taxa de falhas (`failureRateThreshold`) e o tempo que o Circuit Breaker permanecerá no estado aberto (`waitDurationInOpenState`).
 
@@ -68,7 +85,7 @@ public class ExternalService {
     @CircuitBreaker(name = "backendA", fallbackMethod = "fallbackResponse")
     public String callExternalService() {
         // Simulando chamada para um serviço externo
-        String url = "https://url-inexistente.com/dados";
+        String url = "https://jsonplaceholder.typicode.com/todos";
         return restTemplate.getForObject(url, String.class);
     }
 
@@ -158,7 +175,7 @@ public class ExternalService {
     @CircuitBreaker(name = "backendA", fallbackMethod = "fallbackResponse")
     public String callExternalService() {
         // Simulando uma chamada para um serviço externo que não existe
-        String url = "https://url-inexistente.com/dados";
+        String url = "https://jsonplaceholder.typicode.com/todos";
         return restTemplate.getForObject(url, String.class);
     }
 
@@ -179,4 +196,13 @@ Você pode monitorar os logs do Circuit Breaker ativando os logs do Resilience4j
 ```properties
 logging.level.io.github.resilience4j.circuitbreaker=DEBUG
 ```
+
+---
+## Passos para Implementar o Timeout
+
+
+## Passos para Implementar o RateLimit
+
+
+## Passos para Implementar o Bulkhead
 
