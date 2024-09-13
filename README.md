@@ -8,11 +8,11 @@ Para gerar um projeto Springboot, utilize o Spring Initializr: https://start.spr
 
 Você também precisará ter instalado o Java +16 e Maven +3.9.9
 
-## Passos para Implementar o Circuit Breaker
+## 1. Passos para Implementar o Circuit Breaker
 
 O Circuit Breaker ajuda a proteger a aplicação contra falhas em cascata, evitando chamadas excessivas para serviços que estão falhando.
 
-### 1. Dependências do Maven
+### 1.1. Dependências do Maven
 
 Adicione as dependências necessárias no arquivo `pom.xml`:
 
@@ -43,7 +43,7 @@ Adicione as dependências necessárias no arquivo `pom.xml`:
 		</dependency>
 ```
 
-### 2. Configuração no `application.properties`
+### 1.2. Configuração no `application.properties`
 
 Adicione a configuração do Circuit Breaker no arquivo de propriedades da sua aplicação.
 
@@ -68,7 +68,7 @@ Explicação das Propriedades:
 
 Aqui, `backendA` é o nome da instância do Circuit Breaker, onde você pode ajustar parâmetros como a taxa de falhas (`failureRateThreshold`) e o tempo que o Circuit Breaker permanecerá no estado aberto (`waitDurationInOpenState`).
 
-### 3. Serviço com Circuit Breaker
+### 1.3. Serviço com Circuit Breaker
 
 Crie uma classe de serviço onde o Circuit Breaker será aplicado.
 
@@ -96,7 +96,7 @@ public class ExternalService {
 }
 ```
 
-### 4. REST Controller
+### 1.4. REST Controller
 
 Crie um controlador simples que chama o serviço com o Circuit Breaker implementado.
 
@@ -113,14 +113,14 @@ public class CircuitBreakerController {
         this.externalService = externalService;
     }
 
-    @GetMapping("/api/dados")
+    @GetMapping("/api/circuitBreaker")
     public String getDados() {
         return externalService.callExternalService();
     }
 }
 ```
 
-### 5. Habilitando o Circuit Breaker
+### 1.5. Habilitando o Circuit Breaker
 
 Execute a classe principal da sua aplicação e acesse o endereço `http://localhost:8080/api/dados` no browser.
 
@@ -141,11 +141,11 @@ Após execução o esperado é que a sua aplicação responda com sucesso, confo
 
 <img width="1004" alt="Screen Shot 2024-09-11 at 20 02 16" src="https://github.com/user-attachments/assets/c5995c45-e831-4444-9a97-a3a17903a5b0">
 
-### 6. Simulando Fallback
+### 1.6. Simulando Fallback
 
 Para simular o comportamento do fallback, você pode forçar uma exceção no método `callExternalService` ou simular a indisponibilidade de um serviço externo.
 
-##### 6.1 Simulação de Erro com Exceção
+##### 1.6.1. Simulação de Erro com Exceção
 
 ```java
 @Service
@@ -164,7 +164,7 @@ public class ExternalService {
 }
 ```
 
-##### 6.2 Simulação de Erro com Serviço Indisponível
+##### 1.6.2. Simulação de Erro com Serviço Indisponível
 
 ```java
 @Service
@@ -185,9 +185,9 @@ public class ExternalService {
 }
 ```
 
-### 7. Testando o Fallback
+##### 1.7.2. Testando o Fallback
 
-Agora, ao iniciar a aplicação e acessar a rota `/api/dados`, o Circuit Breaker detectará a falha e acionará o método `fallbackResponse`, retornando a mensagem de fallback: **"Serviço indisponível no momento. Tente novamente mais tarde."**
+Agora, ao iniciar a aplicação e acessar a rota `/api/circuitBreaker`, o Circuit Breaker detectará a falha e acionará o método `fallbackResponse`, retornando a mensagem de fallback: **"Serviço indisponível no momento. Tente novamente mais tarde."**
 
 ---
 
@@ -198,11 +198,157 @@ logging.level.io.github.resilience4j.circuitbreaker=DEBUG
 ```
 
 ---
-## Passos para Implementar o Timeout
+
+# IMPORTANTE :speech_balloon:	
+
+#### Antes de seguir para as próximas etapas, realize a criação das seguintes classes java:
+
+`ResilienceController.java`
+```java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.concurrent.CompletableFuture;
+
+@RestController
+public class ResilienceController {
+
+    @Autowired
+    private ResilienceService resilienceService;
+
+    @GetMapping("/api/timeout")
+    public CompletableFuture<String> callTimeout() {
+        return resilienceService.callTimeout();
+    }
+
+    @GetMapping("/api/bulkhead")
+    public CompletableFuture<String> callBulkHead() {
+        return resilienceService.callBulkhead();
+    }
+
+    @GetMapping("/api/ratelimit")
+    public CompletableFuture<String> callRateLimit() {
+        return resilienceService.callRateLimit();
+    }    
+}
+
+```
+
+`ResilienceService.java`
+```java
+import java.util.concurrent.CompletableFuture;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
+
+@Service
+public class ResilienceService {
+    
+    @Autowired
+    private ExternalService externalService;
+
+    @Bulkhead(name = "externalService", type = Bulkhead.Type.THREADPOOL)
+    public CompletableFuture<String> callBulkhead() {
+        return CompletableFuture.supplyAsync(() -> externalService.makeDelayedExternalCall());
+    }
+
+    @TimeLimiter(name = "externalService")
+    public CompletableFuture<String> callTimeout() {
+        return CompletableFuture.supplyAsync(() -> externalService.makeDelayedExternalCall());
+    }
+
+    @RateLimiter(name = "externalService")
+    public CompletableFuture<String> callRateLimit() {
+        return CompletableFuture.supplyAsync(() -> externalService.makeDelayedExternalCall());
+    }
+}
+```
+
+#### Adicione o novo método `makeDelayedExternalCall` na classe `ExternalService.java`
+```java
+    import java.time.Duration;
+
+    public String makeDelayedExternalCall() {
+        // Simulando uma chamada externa demorada
+        try {
+            Thread.sleep(Duration.ofSeconds(500).toMillis()); 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return "External service response";
+    }
+```
+
+## 2. Passos para Implementar o Timeout
+O papel principal das configurações de Timeout são definir um limite de tempo para a execução de operações, evitando erros inesperados e um tratamento adequado de serviços que tendem a demorar por conta de eventos não esperados. Este tipo de tratamento evita erros indesejados impactando a experiência do cliente.
+
+### 2.1. Adicionar configuração de timeout no arquivo `application.properties`
+As configuracões do Resilience4J são realizadas no arquivo application.properties.
+
+```properties
+# Configurações de Timeout
+resilience4j.timelimiter.instances.externalService.timeoutDuration=2s
+```
+`timeoutDuration`: Define o tempo máximo que o serviço pode levar para responder (2 segundos no caso).
+
+Execute a aplicação. O serviço será invocado no endereço `localhost:8080/api/timeout`
+
+### 2.2. Desafio
+Após realizar a execução da aplicação você verá que o endpoint está respondendo com erro de timeout.
+Realize as configurações de forma adequada para resolver este problema.
 
 
-## Passos para Implementar o RateLimit
+## 3. Passos para Implementar o RateLimit
+O Rate Limiting possibilita controlar a quantidade de requisições permitidas dentro de um período de tempo, evitando cargas massivas de requisições mal intensionadas, por exemplo.
+
+### 3.1. Adicionar configuração de timeout no arquivo `application.properties`
+As configuracões do Resilience4J são realizadas no arquivo application.properties.
+
+```properties
+# Configurações de Rate Limiting
+resilience4j.ratelimiter.instances.externalService.limitForPeriod=5
+resilience4j.ratelimiter.instances.externalService.limitRefreshPeriod=10s
+resilience4j.ratelimiter.instances.externalService.timeoutDuration=500ms
+```
+
+`limitForPeriod `e `limitRefreshPeriod`: Limita a 5 requisições a cada 10 segundos, com um tempo de espera máximo de 500ms se o limite for atingido.
+
+Execute a aplicação. O serviço será invocado no endereço `localhost:8080/api/ratelimit`
+
+### 3.2. Desafio
+Após realizar a execução da aplicação você verá que o endpoint está respondendo com erro de ratelimit.
+Realize as configurações de forma adequada para resolver este problema.
 
 
-## Passos para Implementar o Bulkhead
+## 4. Passos para Implementar o Bulkhead
+As configurações de Bulkhead permitem limitar o número de chamadas simultâneas a um serviço, de modo que a aplicação sempre esteja preparada para cenários adversos.
+
+### 4.1. Adicionar configuração de timeout no arquivo `application.properties`
+As configuracões do Resilience4J são realizadas no arquivo application.properties.
+
+```properties
+# Configurações de Bulkhead
+resilience4j.bulkhead.instances.externalService.maxConcurrentCalls=3
+resilience4j.bulkhead.instances.externalService.maxWaitDuration=1s
+```
+
+`maxConcurrentCalls` e `maxWaitDuration`: Permite até 3 chamadas simultâneas ao serviço e as demais esperam até 1 segundo por uma thread livre.
+
+Execute a aplicação. O serviço será invocado no endereço `localhost:8080/api/bulkhead`
+
+### 4.2. Desafio
+Após realizar a execução da aplicação você verá que o endpoint está respondendo com erro de bulkhead.
+Realize as configurações de forma adequada para resolver este problema.
+
+
+----
+
+
+
+
 
